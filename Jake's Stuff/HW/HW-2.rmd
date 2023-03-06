@@ -1,0 +1,442 @@
+---
+title: 'HW-2: Subset selection'
+author: Dr. Purna Gamage
+---
+
+**Instructions**
+
+* Read and complete all exercises below in the provided `.rmd` notebook 
+[click here to download the notebook for the assignment](HW-2.rmd.zip)
+
+**Submission:**
+
+* You need to upload ONE document to Canvas when you are done. 
+* A PDF (or HTML) of the completed form of this notebook
+* The final uploaded version should NOT have any code-errors present. 
+* All outputs must be visible in the uploaded version, including code-cell outputs, images, graphs, etc
+
+**Optional**: 
+
+* You can actually work in `R` now inside VS-code using the `.ipynb` format
+* Its quite easy to get working: [click here for instructions](https://www.practicaldatascience.org/html/jupyter_r_notebooks.html)
+* There are a few benefits to this 
+  * (1) You can work 100% in VS-Code (for both R and Python), no need to switch between VSC and R-studio
+  * (2) You can work through your cells one at a time and see the incremental progress, similar to using `.ipynb` with python or `rmd` in R-studio.
+* With Quarto's `convert` command, you can re-format and jump between the different file-formats. For example, 
+* `quarto convert HW-2.rmd` will convert the file to `HW-2.ipynb`
+* `quarto convert HW-2.ipynb` will convert the file to `HW-2.qmd`, which can be renamed `HW-2.rmd` or just opened in R-studio like any other `rmd` file, just like normal.
+* `quarto render HW-2.ipynb` will render the notebook (either R or Python) into an aesthetically pleasing output.
+
+```{r}
+
+#knitr::opts_chunk$set(include = FALSE) # for making prompts
+knitr::opts_chunk$set(echo = TRUE) # for making solutions
+library(tidyverse)
+library(modeldata)
+library(leaps)
+library(caret)
+library(corrplot)
+```
+
+## HW-2.1: Heating values
+Use best subset selection methods to determine the best heating values
+
+For bioenergy production, the heating value is a measure of the amount of heat released during combustion. The Higher heating value (HHV) is a particular method for determining the heat released during combustion. The higher HHV the more energy released for a given amount of material. You will use the `biomass` dataset from the `modeldata` package. Run a `?biomass` after importing the data to read about the domain. The response variable is HHV and the predictor variables are the percentages of different elements. Do not include the sample and dataset variables in your analysis.
+
+**HW-2.1.a**
+Create scatter-plots of the response and predictor variables and comment on your findings.
+
+```{r}
+# IMPORT 
+data(biomass)
+
+# EXPLORE DATA
+print(class(biomass))
+print(dim(biomass))
+print(biomass[1:3,1:8])
+```
+
+
+```{r}
+biomass[,3:8] %>%
+  pivot_longer(cols = c('carbon','hydrogen','oxygen','nitrogen','sulfur')) %>%
+  ggplot(., aes(HHV, value))+
+  geom_point()+
+  ggtitle('Scatterplot of Predictors and Response')+
+  facet_wrap(~name)
+```
+
+Based on the scatterplots we cna see that carbon has a strong positive correlation with HHV, and oxygen a decent negative correlation. This makes sense, as carbon burns to create energy which releases CO2 and H2O. The negative correlation with oxygen is likely due to the fact that the more oxygen levels rise, the less carbon there is. The rest of the gases have no noticeable correlation, but are also on a completely different scale as they are very minor parts of the gaseous makeup.
+
+**HW-2.1.b** 
+Split the dataset into an 80-20 training and test sets.
+
+```{r}
+set.seed(100)
+indices <- sample(1:nrow(biomass),floor(.8*nrow(biomass)))
+train <- biomass[indices,3:8]
+test <- biomass[!1:nrow(biomass) %in% indices,3:8]
+```
+
+**HW-2.1.c** 
+Use `regsubsets()` to perform **best subset selection** to pick the best model according to $C_p$, BIC, and adjusted $R^2$.
+
+```{r}
+##Fit full model
+reg <- regsubsets(HHV ~.,data = biomass[,3:8], method = 'exhaustive')
+reg_sum <- summary(reg)
+
+
+# Find the best model according to Cp
+best_model_cp <- which.min(reg_sum$cp)
+
+# Find the best model according to BIC
+best_model_bic <- which.min(reg_sum$bic)
+
+# Find the best model according to adjusted R2
+best_model_adjr2 <- which.max(reg_sum$adjr2)
+
+# Print the best models according to each criterion
+cat("Best model according to Cp:", best_model_cp, "\n",
+    "Best model according to BIC:", best_model_bic, "\n",
+    "Best model according to adjusted R2:", best_model_adjr2, "\n",
+    "Model 3:","\n\n")
+print(reg_sum$outmat[best_model_cp,])
+```
+
+**HW-2.1.d** 
+Repeat this procedure for **forward stepwise selection** and **backward stepwise selection**, compare the best models from each selection method.
+
+```{r}
+##Fit full model
+forward <- regsubsets(HHV ~.,data = biomass[,3:8], method = 'forward')
+forward_sum <- summary(forward)
+
+
+# Find the best model according to Cp
+best_model_forward_cp <- which.min(forward_sum$cp)
+
+# Find the best model according to BIC
+best_model_forward_bic <- which.min(forward_sum$bic)
+
+# Find the best model according to adjusted R2
+best_model_forward_adjr2 <- which.max(forward_sum$adjr2)
+
+# Print the best models according to each criterion
+cat("Best forward selection model according to Cp:", best_model_forward_cp, "\n",
+    "Best forward selection model according to BIC:", best_model_forward_bic, "\n",
+    "Best forward selection model according to adjusted R2:", best_model_forward_adjr2, "\n",
+     "Model 3:","\n\n")
+print(forward_sum$outmat[best_model_forward_cp,])
+
+```
+
+```{r}
+#Fit full model
+backward <- regsubsets(HHV ~.,data = biomass[,3:8], method = 'backward')
+backward_sum <- summary(backward)
+
+
+# Find the best model according to Cp
+best_model_backward_cp <- which.min(backward_sum$cp)
+
+# Find the best model according to BIC
+best_model_backward_bic <- which.min(backward_sum$bic)
+
+# Find the best model according to adjusted R2
+best_model_backward_adjr2 <- which.max(backward_sum$adjr2)
+# Print the best models according to each criterion
+cat("Best backward selection model according to Cp:", best_model_backward_cp, "\n",
+    "Best backward selection model according to BIC:", best_model_backward_bic, "\n",
+    "Best backward selection model according to adjusted R2:", best_model_backward_adjr2, "\n",
+     "Model 3:","\n\n")
+print(backward_sum$outmat[best_model_backward_cp,])
+```
+
+**HW-2.1.e** 
+Use the `predict()` function to investigate the test performance in RMSE using your "best model".
+
+```{r}
+## Using model 3
+model <- lm(HHV ~ carbon + hydrogen + sulfur, data = train)
+test_pred <- predict(model, test)
+cat("RMSE for Model 3:",RMSE(test_pred, test$HHV))
+```
+
+## HW-2.2: Loan applications
+Create your own cross validation algorithm to predict the interest rate for loan applications
+
+Lending club gained fame for being one of the first major players in retail lending. The dataset `lending_club` in the `model_data` package includes 9,857 loans that were provided. Interest rates of loans are often a good indicator of the level of risk associated with lending. If you are likely to pay back a loan, then you will likely be charged lower interest than someone who has a higher chance of default. Your goal is to determine the best model for predicting the interest rate charged to borrowers using best, forward, and backward subset selection within a five-fold cross-validation framework.
+
+Prep steps:
+- drop all rows with missing data in the following columns 
+
+
+**HW-2.2.a** 
+Create a correlation plot of all the numeric variables in the dataset using the `corrplot` package to create a high quality graph, then comment on your findings
+
+```{r}
+lending_club %>%
+  select_if(is.numeric) %>%
+  cor() %>%
+  corrplot(., method = "color", type = "upper", order = "hclust",
+            addCoef.col = "black", tl.col="black", tl.srt=45, addCoefasPercent = T,
+           diag = F, number.cex = 0.8, col = colorRampPalette(c("blue",'white','red'))(50))
+```
+
+What we see in the correlation plot is a number of positive correlations. In the bottom right we see that total balance is correlated with credit limit, the number of accounts opened in the last 6 months, and the number of loans. Revolving utilization is correlated with all utilization which makes sense as the higher amount of credit utilization one loan has directly contributed to the total utilization. Delinquency in the last 12 months is positively correlated with interest rate as well because interest rate scales with loan risk.
+**HW-2.2.b** 
+Run best, forward, and backward subset selection on the entire dataset comment on the findings
+
+```{r}
+# Running best selection
+##Fit full model
+reg <- regsubsets(int_rate ~.,data = lending_club, method = 'seqrep', nvmax = 200)
+reg_sum <- summary(reg)
+
+
+# Find the best model according to Cp
+best_model_cp <- which.min(reg_sum$cp)
+
+# Find the best model according to BIC
+best_model_bic <- which.min(reg_sum$bic)
+
+# Find the best model according to adjusted R2
+best_model_adjr2 <- which.max(reg_sum$adjr2)
+
+# Print the best models according to each criterion
+cat("Best model according to Cp:", best_model_cp, "\n",
+    "Best model according to BIC:", best_model_bic, "\n",
+    "Best model according to adjusted R2:", best_model_adjr2, "\n")
+```
+
+```{r}
+## Forward selection
+##Fit full model
+forward <- regsubsets(int_rate ~.,data = lending_club, method = 'forward', nvmax = 200)
+forward_sum <- summary(forward)
+
+
+# Find the best model according to Cp
+best_model_forward_cp <- which.min(forward_sum$cp)
+
+# Find the best model according to BIC
+best_model_forward_bic <- which.min(forward_sum$bic)
+
+# Find the best model according to adjusted R2
+best_model_forward_adjr2 <- which.max(forward_sum$adjr2)
+
+# Print the best models according to each criterion
+cat("Best forward selection model according to Cp:", best_model_forward_cp, "\n",
+    "Best forward selection model according to BIC:", best_model_forward_bic, "\n",
+    "Best forward selection model according to adjusted R2:", best_model_forward_adjr2, "\n")
+```
+
+```{r}
+## Backward selection
+#Fit full model
+backward <- regsubsets(int_rate ~.,data = lending_club, method = 'backward', nvmax = 200)
+backward_sum <- summary(backward)
+
+
+# Find the best model according to Cp
+best_model_backward_cp <- which.min(backward_sum$cp)
+
+# Find the best model according to BIC
+best_model_backward_bic <- which.min(backward_sum$bic)
+
+# Find the best model according to adjusted R2
+best_model_backward_adjr2 <- which.max(backward_sum$adjr2)
+# Print the best models according to each criterion
+cat("Best backward selection model according to Cp:", best_model_backward_cp, "\n",
+    "Best backward selection model according to BIC:", best_model_backward_bic, "\n",
+    "Best backward selection model according to adjusted R2:", best_model_backward_adjr2, "\n")
+
+```
+
+```{r}
+## RESULTS SUMMARY
+bic <- data.frame(model = 1:length(forward_sum$bic), forward = forward_sum$bic, backward = backward_sum$bic, best = reg_sum$bic)
+r2 <- data.frame(model = 1:length(forward_sum$adjr2), forward = forward_sum$adjr2, backward = backward_sum$adjr2, best = reg_sum$adjr2)
+cp <- data.frame(model = 1:length(forward_sum$cp),forward = forward_sum$cp, backward = backward_sum$cp, best = reg_sum$cp)
+
+bic_fig <- 
+  bic %>% 
+  pivot_longer(cols = c('forward','backward','best'))%>%
+  ggplot(., aes(model, value, color = name))+
+  geom_line()+
+  ggtitle('Best Model According to BIC')+
+  xlab('BIC')
+
+r2_fig <- 
+  r2 %>% 
+  pivot_longer(cols = c('forward','backward','best'))%>%
+  ggplot(., aes(model, value, color = name))+
+  geom_line()+
+  ggtitle('Best Model According to AdjR2')+
+  xlab('AdjR2')
+
+cp_fig <- 
+  cp %>% 
+  pivot_longer(cols = c('forward','backward','best'))%>%
+  ggplot(., aes(model, value, color = name))+
+  geom_line()+
+  ggtitle('Best Model According to C_p')+
+  xlab('C_p')
+               
+gridExtra::grid.arrange(bic_fig, r2_fig, cp_fig, ncol = 2)
+
+                      
+```
+
+All of the metrics appear to converge to local minima or maxima around model 30 and stay at the low thereafter. Forward selection takes a little bit longer to reach this level, around model 40. Models 36 and 59 both show up as optimal model choics accoriding to BIC and Adj R2 in best subset and backward subset selection, so these 2 will be used going forward.
+```{r}
+print(backward_sum$outmat[36,])
+print(backward_sum$outmat[59,])
+```
+
+
+**HW-2.2.c** 
+Create a five-fold cross-validation algorithm using for loops to compare the CV mse performance of your best two models
+
+```{r}
+## CV algorithm
+CV <- function(data, k = 5){
+  cutoff <- floor(nrow(data)/5)
+  mse_model1 <- c()
+  mse_model2 <- c()
+  for (i in 1:k){
+    start <- 1 + ((i-1) * cutoff)
+    stop <- start + cutoff
+    train <- data[!1:nrow(data) %in% start:stop,]
+    test <- data[start:stop,]
+    model1 <- lm(int_rate ~ term + sub_grade + verification_status, data = train)
+    model2 <- lm(int_rate ~
+                   funded_amnt + term + sub_grade + addr_state + verification_status
+                   + inq_last_6mths + delinq_2yrs + open_il_12m + delinq_amnt + Class,
+                 data = train)
+    predict1 <- predict(model1, test)
+    predict2 <- predict(model2, test)
+    mse_model1 <- c(mse_model1, RMSE(predict1, test$int_rate)**2)
+    mse_model2 <- c(mse_model2, RMSE(predict2, test$int_rate)**2)
+  }
+  return(c("Model 36 MSE:" = mean(mse_model1), "Model 59 MSE:" = mean(mse_model2)))
+}
+```
+
+```{r}
+CV(lending_club)
+```
+
+## HW-2.3: k-fold cross-validation
+
+Properties of k-fold cross validation
+
+Suppose we are given a training set with `n` observations and want to conduct `k`-fold cross-validation. Assume always that `n = km` where `m` is an integer.
+
+**HW-2.3.a** Let k = 2. Explain carefully why there are $\frac{1}{2}\left(\begin{array}{c}
+n \\
+m
+\end{array}\right)$  ways to partition the data into 2 folds. 2m
+
+\left(\begin{array}{c}
+n \\
+m
+\end{array}\right)$  represents the number of combinations that can arise from choosing m items from n items. The reason why we must divide this by 2 to determine how many ways we can partition into 2 folds, is to avoid overcounting. For instance, we can choose m items for fold A and the rest of the n items for B, but this formula also accounts for those same m items being in fold B and the rest in fold A. For our case, we only care about the number of unique fold combinations, not which data points are in which fold. Thus we divide by 2 to remove the cases accounting for the swaps.
+
+
+**HW-2.3.b** Let `k` = 3. Explain carefully why there are $\frac{n!}{3!m!m!m!}$ ways to partition the data into 3 folds.
+
+The number of ways to select m items from n items is given by $\binom{n}{m}$. Once we have chosen the m items to go in Fold A, the remaining n - m items will go into two folds, Fold B and Fold C.
+
+The remaining n - m items can be partitioned into two sets of size (n - m)/2 each to put in Fold B and Fold C respectively. The number of ways to choose (n - m)/2 items from n - m items is given by  $\binom{n-m}{(n-m)/2}$.
+
+However, since the order in which we put the items in each fold does not matter, we need to divide the total number of ways to partition the data by the number of equivalent arrangements. There are 3! possible equivalent arrangements because we can arrange the three folds in 3! different ways. Therefore, the total number of ways to partition the data into three folds is:
+
+$\frac{1}{3!}\binom{n}{m}\binom{n-m}{(n-m)/2}\binom{n-m}{(n-m)/2}$
+
+Simplifying, we have:
+
+$\frac{n!}{3!m!m!m!}$
+
+**HW-2.3.c**
+Guess a formula for the number of ways to partition the data into `k` folds for general `k`. Check if your formula gives the correct answer for `k=n` (leave-one-out c.v.).
+
+We have to select k sets of size m which we can do by 
+$\frac{n!}{(m!)^k}$
+
+This equation does not account for equivalent arrangements, if it did we would divide this number by k!
+
+Using this equation we can substitute k = n and get $\frac{n!}{(1!)^n} = n!$. This represents the number of ways to partition the data in LOOCV. However, if we only want to look at non-equivalent arrangements then we divide by k! which in this case is n! which would give $\frac{n!}{n!} = 1$ which represents the number of meaningful ways to split the data for LOOCV. The difference comes from if we care if about the difference between splitting a 100 row dataset into 1:99 and 100 or 2:100 and 1 or 1,3:100 and 2 to start vs recognizing that the order in which we create is equivalent as long as you get to every set.
+
+
+## HW-2.4: Advertising budget
+
+Using cross-validation to select best advertising budget
+
+In this problem, we use the Advertising data [download here](https://www.statlearning.com/s/Advertising.csv). We want to predict Sales from TV, Radio and Newspaper, using multiple regression with all three predictors plus up to one interaction term of these three predictors, e.g. TV * Radio or Radio * Newspaper. 
+
+**HW-2.4.a** 
+Should such an interaction term be included? Which one? Try to answer this question by estimating the residual standard error using 10-fold cross validation for all four possible models.
+
+```{r}
+df <- read_csv('https://www.statlearning.com/s/Advertising.csv')
+```
+
+**HW-2.4.b** 
+Create a single plot showing the return on investment of each advertising method where the y-axis is `Sales` and the x-axis is advertising dollars. There should be three lines, one for each method. The slope is the coefficient from you regression. What is the best advertising method to invest in based on return on investment?
+
+```{r}
+# INSERT CODE
+```
+
+## HW-2.5: ISLR-6.8 #8(a-d)
+
+#### Part-A
+
+```{r}
+# INSERT CODE
+```
+
+#### Part-B
+
+```{r}
+# INSERT CODE
+```
+
+#### Part-C
+
+```{r}
+# INSERT CODE
+```
+
+```{r}
+# INSERT CODE
+```
+
+```{r}
+# INSERT CODE
+```
+
+#### Part-D: 
+
+#### Forward selection
+
+```{r}
+# INSERT CODE
+```
+
+```{r}
+# INSERT CODE
+```
+
+#### Backward selection
+
+```{r}
+# INSERT CODE
+```
+
+```{r}
+# INSERT CODE
+```
+

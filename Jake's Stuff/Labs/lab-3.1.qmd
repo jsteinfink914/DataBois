@@ -1,0 +1,214 @@
+---
+format:
+  html:
+    embed-resources: true
+---
+
+# Lab-3.1: Ridge and lasso regularization
+Author: Dr. Purna Gamage
+
+**Instructions**
+
+* Read and complete all exercises below in the provided `.rmd` notebook 
+* [click here to download the notebook for the assignment](lab-3.1.rmd.zip)
+
+**Submission:**
+
+* You need to upload ONE document to Canvas when you are done. 
+* A PDF (or HTML) of the completed form of this notebook
+* The final uploaded version should NOT have any code-errors present. 
+* All outputs must be visible in the uploaded version, including code-cell outputs, images, graphs, etc
+
+## Import
+
+```{r}
+
+require(ISLR)
+require(MASS)
+require(glmnet)
+require(leaps)
+require(tidyverse)
+set.seed(3315)
+```
+
+## Question-1: 
+
+In this exercise, we will predict the number of applications received using the other variables in the College data set.
+
+Source: ISLR ch. 6 #9abcd
+
+```{r}
+
+# LOOK AT DATA
+data(College)
+print(class(College))
+print(dim(College))
+print(head(College))
+```
+
+### Q1.a: 
+Split the data set into a training set and a test set.
+
+```{r}
+## Convert Private into a binary column
+College$Private <- ifelse(College$Private == "Yes",1,0)
+indexes <- sample(1:nrow(College), floor(nrow(College)*.8))
+train <- College[indexes,]
+test <- College[!1:nrow(College) %in% indexes,]
+```
+
+
+### Q1.b: 
+Fit a linear model using least squares on the training set, and print the test error obtained.
+
+```{r}
+model <- lm(Apps ~., data = train)
+pred <- predict(model, test)
+RMSE <- sqrt(mean((test$Apps - pred)**2))
+summary(model)
+cat(paste0("Test RMSE: ", RMSE, "\n"))
+```
+With the standard regression we see a whole host of insignificant variables.
+
+### Q1.c: 
+* Fit a ridge regression model on the training set, with $\lambda$ chosen by cross-validation. 
+* Plot the test MSE as a function of the log of the regularization parameter (i.e. log($\lambda$)) for several orders of magnitude.
+* Also report the test error obtained.
+
+```{r}
+# Separate data from target 
+X_train <- as.matrix(train %>% select(!Apps))
+y_train <- train$Apps
+X_test <- as.matrix(test %>% select(!Apps))
+y_test <- test$Apps
+
+# Fit ridge regression model with 10-fold cross-validation
+cv_model <- cv.glmnet(X_train, y_train, alpha=0, nfolds=10, lambda.min.ratio = .000001)
+
+# Plot test MSE vs. log(lambda)
+plot(cv_model)
+# Report test error
+test_preds <- predict(cv_model, newx=X_test, s='lambda.min')
+test_rmse <- sqrt(mean((test_preds - y_test)^2))
+cat(paste0("Test RMSE: ", test_rmse, "\n"))
+best_model <- glmnet(X_train, y_train, alpha = 0, lambda = cv_model$lambda.min)
+coef(best_model)
+```
+With the ridge regression, some of the larger magnitude coefficients shrunk but this model performed worse with a higher RMSE then the traditional linear regression.
+
+### Q1.d: 
+* Fit a lasso model on the training set, with $\lambda$ chosen by cross-validation. 
+* Again, Plot the MSE as a function of the log of the regularization parameter (i.e. log($\lambda$)) for several orders of magnitude.
+* Also plot the number of non-zero coefficient estimates.
+* Finally, report the test error obtained.
+
+```{r}
+# Fit Lasso model with cross-validation
+lasso_model <- cv.glmnet(X_train, y_train, alpha = 1, nfolds = 10, lambda.min.ratio = 1e-4)
+
+# Plot MSE as a function of log(lambda)
+plot(lasso_model)
+
+# Plot number of non-zero coefficients as a function of log(lambda)
+plot(log(lasso_model$lambda), lasso_model$glmnet.fit$df, type = "l", xlab = "log(lambda)", ylab = "Number of non-zero coefficients")
+
+
+# Get test predictions for optimal lambda
+opt_lambda <- lasso_model$lambda.min
+lasso_model_opt <- glmnet(X_train, y_train, alpha = 1, lambda = opt_lambda)
+lasso_preds <- predict(lasso_model_opt, newx = X_test)
+test_mse <- sqrt(mean((lasso_preds - y_test)^2))
+
+# Report test error
+cat(paste0("Test RMSE: ", test_mse, "\n"))
+coef(lasso_model_opt)
+```
+The lasso regression also performed worse than the full model, but it did effectively remove 2 highly insignificant variables - Enroll and Personal from the regression.
+
+## Question-2: 
+
+Consider the __Boston__ data. We want to predict __medv__ from all other predictors, using the LASSO.
+
+### Q2.a
+Set up the LASSO and plot the trajectories of all coefficients. What are the last five variables to remain in the model? 
+
+```{r}
+data(Boston)
+set.seed(123)
+
+X <- model.matrix(medv ~., data = Boston)[,2:ncol(Boston)]
+y  <- Boston[, 'medv']
+
+# Fit LASSO model
+lasso_mod <- cv.glmnet(X, y, alpha = 1, nfolds = 10)
+
+# Plot coefficient trajectories
+plot(lasso_mod$glmnet.fit, xvar = "lambda", label = TRUE)
+
+# Identify last five variables to remain in the model
+lasso_mod_opt <- glmnet(X, y, alpha = 1, lambda = .8)
+coef(lasso_mod_opt)
+```
+The last 5 variables in the model are chas (near the Charles River), rm (Avg # of rooms), ptratio (student-teacher ratio), black (proportion of black people), and lstat.
+
+
+### Q2.b 
+Find the 1SE value of $\lambda$, using 10-fold cross-validation. What is the cross validation estimate for the residual standard error? 
+
+```{r}
+## Already did 10 fold CV above so get estimate from there
+lambda.1se <- lasso_mod$lambda.1se
+
+# compute cross-validation estimate of residual standard error
+rse <- lasso_mod$cvm[which(lasso_mod$lambda == lambda.1se)]
+cat(paste0("Lambda:",lambda.1se, "\n","RSE: ", rse, "\n"))
+
+```
+
+
+
+
+### Q2.c 
+Rescale all predictors so that their mean is zero and their standard deviation is 1. Then set up the LASSO  and plot the trajectories of all coefficients. 
+
+What are the last five variables to remain in the model? Compare  your answer to part a).
+
+```{r}
+# Fit LASSO model
+X_s <- scale(X)
+y_s <- scale(y)
+lasso_mod_s <- cv.glmnet(X_s, y_s, alpha = 1, nfolds = 10)
+
+# Plot coefficient trajectories
+plot(lasso_mod_s$glmnet.fit, xvar = "lambda", label = TRUE)
+
+# Identify last five variables to remain in the model
+lasso_mod_opt <- glmnet(X_s, y_s, alpha = 1, lambda = .09)
+coef(lasso_mod_opt)
+```
+
+The last 5 variables are the same here and in part A indicating agreement that these variables are the crucial ones for determining median home value.
+
+
+### Q2.d 
+Find the 1SE value of $\lambda$, using 10-fold cross-validation. What is the cross validation estimate for the residual standard error now? Does rescaling lead to a better performing model? 
+
+```{r}
+## Already did 10 fold CV above so get estimate from there
+lambda.1se_s <- lasso_mod_s$lambda.1se
+
+# compute cross-validation estimate of residual standard error
+rse <- lasso_mod_s$cvm[which(lasso_mod_s$lambda == lambda.1se_s)]
+cat(paste0("Lambda:",lambda.1se, "\n","RSE: ", rse, "\n"))
+```
+Rescaling leads to a significantly lower lambda and RMSE, however it is difficult to compare model performance between these 2 because the rescaled values are all between -3 and 3 with a mean of 0 whereas the previous values were between 5 and 50 with a mean of 22. To do this better we should look at the correlation between the predictions and actual values.
+
+```{r}
+par(mfrow = c(1,2))
+plot(y, predict(lasso_mod, newx = X, lambda = lambda.1se), main = "Non Scaled Pred vs. Actual", ylab = "Pred")
+plot(y_s, predict(lasso_mod_s, newx = X_s, lambda = lambda.1se_s), main = "Scaled Pred vs. Actual", ylab = "Pred_S")
+```
+
+Given the plots we can say that the models perform equally well, but the scaling does fit our predicted range into a smaller value range which can be helpful for data consistency across models.
+
+

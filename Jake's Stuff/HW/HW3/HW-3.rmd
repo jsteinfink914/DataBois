@@ -1,0 +1,334 @@
+# ANLY-512: HW-3
+Author: Dr. Purna Gamage
+
+**Instructions**
+
+* Read and complete all exercises below in the provided `.rmd` notebook 
+* [click here to download the notebook for the assignment](HW-3.rmd.zip)
+
+**Submission:**
+
+* You need to upload ONE document to Canvas when you are done. 
+* A PDF (or HTML) of the completed form of this notebook
+* The final uploaded version should NOT have any code-errors present. 
+* All outputs must be visible in the uploaded version, including code-cell outputs, images, graphs, etc
+
+## Import
+
+```{r}
+
+#knitr::opts_chunk$set(include = FALSE) # for making prompts
+knitr::opts_chunk$set(echo = TRUE) # for making solutions
+knitr::opts_chunk$set(fig.width = 3)
+library(knitr)
+library(tidyverse)
+library(modeldata)
+library(leaps)
+library(caret)
+library(corrplot)
+library(MASS)
+library(ISLR)
+library(glmnet)
+library(gam)
+```
+
+## HW-3.1: Stock returns
+
+Use polynomials and ridge regression to predict stock returns
+
+This problem uses the built in `EuStockMarkets` dataset. The dataset contains time series of closing prices of major European stock indices from 1991 to 1998. We use only the `FTSE` column in this problem. The dataset is a time series object, but you will need to extract the `FTSE` column and make it into a data frame. 
+
+### HW-3.1a: 
+
+Fit polynomial models of degrees 4, 8, 12 to the FTSE data and plot all three fitted curves together with a scatterplot of the data. Comment on the plots. Which features in the data are resolved by the polynomial models? Which features are not resolved? Do the polynomial curves show any artifacts such as oscillations?
+
+```{r}
+
+# GET DATA
+data("EuStockMarkets")
+print(head(EuStockMarkets))
+ftse <- EuStockMarkets[,4]
+```
+
+```{r}
+print(attributes(ftse))
+```
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+### HW-3.1.b: 
+Use ridge regression to regularize the polynomial model of degree 12. Use $\lambda_{1}SE$. Plot the resulting polynomial model onto the the data and comment on it.
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+## HW-3.2: Advertising budgets
+
+Improve advertising budgets using GAMs
+
+Use the Advertising dataset, which can either be found [here]('https://georgetown.instructure.com/files/6146482/download?download_frd=1'). Split the data into a training and test set (70% / 30%).
+
+```{r}
+# GET DATA
+set.seed(441)
+ads <- read_csv('https://www.statlearning.com/s/Advertising.csv')
+ads <- ads[,-1] # remove the X variable (index)
+train <- sample(200,140)
+```
+
+### HW-3.2a: 
+Fit generalized additive models to predict sales, using smoothing splines of degrees 2, 3, 4, 5, 6 for the three predictors. How do the rms prediction errors compare to the rms prediction error of a multiple regression model on the training set? On the test set?
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+### HW-3.2.b: 
+Is there evidence of overfitting?
+
+INSERT EXPLANATION HERE 
+
+### HW-3.2.c: 
+You now have six models (five GAM and one LM). Which model should be used? Explain your answer.
+
+INSERT EXPLANATION HERE 
+
+## HW-3.3: Boston housing
+
+Use LASSO to predict housing prices in Boston
+
+Consider the `Boston` data from the `MASS` package. We want to use LASSO to predict the median home value `medv` using all the other predictors.
+
+### HW-3.3.a: 
+Set up the LASSO and plot the trajectories of all coefficients. What are the last five variables to remain in the model?
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+### HW-3.3.b:
+Find the 1SE value of $\lambda$, using 10-fold cross-validation. What is the cross validation estimate for the residual standard error?
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+### HW-3.3.c: 
+Rescale all predictors so that their mean is zero and their standard deviation is 1. Then set up the LASSO and plot the trajectories of all coefficients. What are the last five variables to remain in the model? Compare your answer to part a.
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+### HW-3.3.d: 
+Find the 1SE value of $\lambda$ using 10-fold cross-validation. What is the cross validation estimate for the residual standard error now? Does rescaling lead to a better performing model?
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+## HW-3.4: Bike share usage
+
+Predict bike share usage in Seoul using ridge and LASSO regressions
+
+Access the [dataset here](https://archive.ics.uci.edu/ml/machine-learning-databases/00560/SeoulBikeData.csv). Filter the data to only include rows with "`functioning days`" == 'Yes'. Next drop the columns `Date`, `Hour`, `Seasons`, and `Holiday`, and `Functioning Day`. Then drop any rows that have any missing values in any columns. Hint: You will need to rename some of the variable names because they include non-ASCII characters. This will help you later on.
+
+```{r}
+
+# GET DATA
+
+```
+
+
+### HW-3.4.a: 
+
+Run a linear regression to predict rented bike count using the remaining 8 variables in the dataset. Report the MSE and the most influential variables.
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+### HW-3.4.b: 
+
+Fit a ridge regression model with the optimal $\lambda$ chosen by cross validation. Report the CV MSE.
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+### HW-3.4.c: 
+Perform the same fit using a LASSO regression this time. Choose the optimal $\lambda$ using cross validation. Report on the remaining variables in the model and the CV MSE. How does this performance compare to ridge and a plain linear model?
+
+```{r}
+
+# INSERT CODE HERE 
+
+```
+
+### HW-3.4.e: 
+Interpretation and communication. Write a short paragraph about your analysis and recommendations, explaining the most important factors for high bike share usage, why you came to that conclusion, and what actions can be taken by a bike rental company based on this information.
+
+INSERT EXPLANATION HERE 
+
+
+## HW-3.5: Splines
+
+Compare the characteristics of two different smoothing splines
+
+Consider two curves called $\hat{g}_1$ and $\hat{g}_2$ are as follows:
+
+$$
+\hat{g}_1 = argmin_g \left(\sum_{i=1}^n (y_i - g(x_i))^2 + \lambda \int [g^{(3)}(x)]^2 \right)
+$$
+
+$$
+\hat{g}_2 = argmin_g \left(\sum_{i=1}^n (y_i - g(x_i))^2 + \lambda \int [g^{(4)}(x)]^2 \right)
+$$
+where $g^{(m)}$ represents the $m^{th}$ derivative of $g$.
+
+
+### HW-3.5.a: 
+As $\lambda \to \infty$, which function ($\hat{g_1}$ or $\hat{g_2}$) will have the smaller training RSS?
+
+<br>
+
+INSERT EXPLANATION HERE 
+
+<br>
+
+### HW-3.5.b: 
+As $\lambda \to \infty$, which function ($\hat{g_1}$ or $\hat{g_2}$) will have the smaller test RSS?
+
+<br>
+
+INSERT EXPLANATION HERE 
+
+<br>
+
+### HW-3.5.c: 
+For $\lambda = 0$, which function ($\hat{g_1}$ or $\hat{g_2}$) will have the smaller training and test RSS?
+
+<br>
+
+INSERT EXPLANATION HERE 
+
+<br>
+
+## HW-3.6: 
+
+Explain the behavior of the curve for a variety of $\lambda$ and $m$ values.
+
+Suppose a curve $\hat{g}$ is fit smoothly to a set of $n$ points as follows:
+
+$$
+\hat{g} = argmin_g \left(\sum_{i=1}^n (y_i - g(x_i))^2 + \lambda \int [g^{(m)}(x)]^2 \right)
+$$
+
+where $g^{(m)}$ is the $m$th derivative of $\hat{g}$ and $g^{(0)}=g$. Provide plots of $\hat{g}$ in each of the following scenarios along with the original points provided.
+
+Use the following starter code to make your set of points and plot your various model predictions.
+
+```{r}
+
+set.seed(325626)
+
+X <- runif(100)
+eps <- rnorm(100)
+Y <- sin(12*(X + 0.2)) / (X + 0.2) + eps
+generating_fn <- function(X) {sin(12*(X + 0.2)) / (X + 0.2)}
+df <- data.frame(X, Y)
+
+ggplot(df, aes(x = X, y = Y)) + 
+  geom_point(alpha = 0.5) + 
+  stat_function(fun = generating_fn, aes(col = "Generating Function")) + 
+  scale_color_manual(values = "deepskyblue3") + 
+  theme(legend.position = "right", legend.title = element_blank())
+```
+
+### HW-3.6.a: 
+$\lambda = \infty, m = 0$.
+
+```{r}
+
+# INSERT SOLUTION HERE 
+
+```
+
+### HW-3.6.b: 
+$\lambda = \infty, m = 1$.
+
+```{r}
+
+# INSERT SOLUTION HERE 
+
+```
+
+### HW-3.6.c: 
+$\lambda = \infty, m = 2$.
+
+```{r}
+
+# INSERT SOLUTION HERE 
+
+```
+
+### HW-3.6.d: 
+$\lambda = \infty, m = 3$.
+
+```{r}
+
+# INSERT SOLUTION HERE 
+
+```
+
+### HW-3.6.e: 
+$\lambda = 0, m = 3$.
+
+```{r}
+
+# INSERT SOLUTION HERE 
+
+```
+
+### HW-3.6.f: 
+Fit a smoothing spline on the dataset and report the optimal lambda
+
+```{r}
+
+# INSERT SOLUTION HERE 
+
+```
+

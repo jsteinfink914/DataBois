@@ -1,0 +1,429 @@
+---
+title: "Lab-2.1: Cross-Validation"
+author: "Dr. Purna Gamage"
+jupyter: ir
+---
+
+**Instructions**
+
+* Read and complete all exercises below in the provided `.rmd` notebook 
+* [click here to download the notebook for the assignment](lab-2.1.rmd.zip)
+
+**Submission:**
+
+* You need to upload ONE document to Canvas when you are done. 
+* A PDF (or HTML) of the completed form of this notebook
+* The final uploaded version should NOT have any code-errors present. 
+* All outputs must be visible in the uploaded version, including code-cell outputs, images, graphs, etc
+
+**Optional**: 
+
+* You can actually work in `R` now inside VS-code using the `.ipynb` format
+* Its quite easy to get working: [click here for instructions](https://www.practicaldatascience.org/html/jupyter_r_notebooks.html)
+* There are a few benefits to this 
+  * (1) You can work 100% in VS-Code (for both R and Python), no need to switch between VSC and R-studio
+  * (2) You can work through your cells one at a time and see the incremental progress, similar to using `.ipynb` with python or `rmd` in R-studio.
+* With Quarto's `convert` command, you can re-format and jump between the different file-formats. For example, 
+* `quarto convert HW-2.rmd` will convert the file to `HW-2.ipynb`
+* `quarto convert HW-2.ipynb` will convert the file to `HW-2.qmd`, which can be renamed `HW-2.rmd` or just opened in R-studio like any other `rmd` file, just like normal.
+* `quarto render HW-2.ipynb` will render the notebook (either R or Python) into an aesthetically pleasing output.
+
+## Part-1: Demonstration
+We will work through the following section in class as a technical example.
+
+### Import
+
+```{r}
+#| vscode: {languageId: r}
+# install.packages("ISLR");
+library(ISLR) 
+require(boot)
+```
+
+```{r}
+#| vscode: {languageId: r}
+# GET INFO ABOUT CROSS VALIDATION PACKAGE
+?cv.glm
+```
+
+```{r}
+#| vscode: {languageId: r}
+# GET DATA
+data(Auto)
+df=Auto
+
+# EXPLORE DATA
+print(class(df))
+print(dim(df))
+print(df[1:3,1:8])
+```
+
+```{r}
+#| vscode: {languageId: r}
+# PLOT THE DATA 
+# plot(mpg~horsepower,data = Auto)
+plot(df$horsepower,df$mpg)
+```
+
+### Leave-One-Out Cross-Validation
+
+We can do a linear fit as usual with `lm` function
+
+```{r}
+#| vscode: {languageId: r}
+lm.fit=lm(mpg~horsepower,data=df)
+# print(lm.fit)
+print(coef(lm.fit))
+```
+
+If we use glm() to fit a model without passing in the family argument, then it performs linear regression, just like the lm() function.
+
+```{r}
+#| vscode: {languageId: r}
+# FIT THE MODEL 
+# glm.fit=glm(mpg~horsepower,data=Auto)
+glm.fit=glm(mpg~horsepower,data=df)
+print(coef(glm.fit))
+
+# PLOT THE RESULTS
+b=coef(glm.fit)[1]
+m=coef(glm.fit)[2]
+print(c(b,m))
+plot(df$horsepower,df$mpg)
+points(df$horsepower,m*df$horsepower+b, col = "#1b98e0")
+```
+
+You can see the result in identical linear regression models.
+
+We will perform linear regression using the glm() function rather than the lm() function because the former can be used together with the cv.glm() function, which is part of the boot library.
+
+```{r}
+#| vscode: {languageId: r}
+cv=cv.glm(Auto,glm.fit) #pretty slow (doesn't use  formula (5.2))
+```
+
+```{r}
+#| vscode: {languageId: r}
+print(summary(cv))
+print(cv$delta)
+```
+
+```{r}
+#| vscode: {languageId: r}
+## PRINT MSE, RMSE 
+ypred=m*df$horsepower+b
+y=df$mpg
+res=(y-ypred)
+print(mean(res**2))
+print(mean(abs(res)))
+print(mean(res**2)**0.5)
+```
+
+The cv.glm() function produces a list with several components. The two numbers in the delta vector contain the cross-validation results.
+
+The first number we see above is raw the LOOCV result, and the second number is a bias corrected version of it. 
+
+The Bias correction is because the data set that we train on is slightly smaller than the one that we actually would like to get the error for, which is the full data set of size n.
+
+It has more of an effect for K-fold CV. (The adjustment is designed to compensate for the bias introduced by not using leave-one-out cross-validation.)
+
+On this data set, the two estimates are very similar to each other.
+
+This command will likely take a couple of minutes to run.
+
+Let's write a simple function to use formula(5.2)
+
+
+$$\mathrm{CV}_{(n)}=\frac{1}{n} \sum_{i=1}^n\left(\frac{y_i-\hat{y}_i}{1-h_i}\right)^2 \,\,\,\,\,\,\,\,\,\,(5.2)$$
+
+```{r}
+#| vscode: {languageId: r}
+loocv=function(fit){ #function loocv takes the fit as the argument
+  h =lm.influence(fit)$h #lm.influence is a post-processor for lm.fit
+  #will extract the element h from that which gives you the diagonal elements
+  #of the hat matrix =levarage => put that in a vector h
+  mean((residuals(fit)/(1-h))^2) #formula 5.2
+  }
+
+#Now lets try it
+
+loocv(glm.fit)
+```
+
+This runs very quickly, and has the same as the result from the previous glm.fit, showing our function works.
+
+Now let's fit polynomials of different degrees(1-5). Because the data looks very non linear.
+
+```{r}
+#| vscode: {languageId: r}
+cv.error=rep(0,5)
+
+degree =1:5
+
+for (d in degree){
+  glm.fit=glm(mpg~poly(horsepower,d),data=Auto) #fit the polynomial of the degree d
+  cv.error[d]=loocv(glm.fit)#a vector to collect errors
+}
+print(cv.error)
+
+
+plot(degree,cv.error, type='o') #plot the error against the degree
+```
+
+Degree 1 does poorly. Degree 2 error jumps down from 24 down to just above 19. Higher degrees really don't make much difference.
+
+By looking at the graph we can conclude that a quadratic model will be a good fit.
+
+### (K=5)-Fold Cross-Validation
+
+```{r}
+#| vscode: {languageId: r}
+set.seed(17)
+
+cv.error.5=rep(0,5)
+
+for (d in degree){
+  glm.fit=glm(mpg~poly(horsepower,d),data=Auto)
+  cv.error.5[d]=cv.glm(Auto,glm.fit,K=10)$delta[1]
+} #K=5 is the number of folds.
+print(cv.error.5)
+
+plot(degree,cv.error, type='o')
+lines(degree,cv.error.5, type = "o",col="red")
+```
+
+It's not much different but more stable (less variation) than LOOCV.
+
+Notice that the computation time is much shorter than that of LOOCV.
+
+### Auto example
+
+(a). What is the best model? 
+
+Best  model: $mpg = -120.14* horsepower + 44.09*(horsepower)^2$  
+
+
+(b) Compare the cross validation error rate for different splits.
+
+```{r}
+#| vscode: {languageId: r}
+cv.error = matrix(data = NA,nrow=10, ncol = 10)
+
+for (j in 1:10){
+for (i in 1:10){
+  glm.fit=glm(mpg~poly(horsepower,i),data=Auto)
+  cv.error[i,j]=cv.glm(Auto,glm.fit,K=10)$delta[1]
+}
+}
+
+degree=1:10
+matplot(degree,cv.error,type="l")
+
+#best model
+glm.fit=glm(mpg~poly(horsepower,2),data=Auto)
+summary(glm.fit)
+```
+
+### Example
+
+Consider the built-in data set __cars__ . We wish to predict the braking distance __dist__ from __speed__. Use leave-one-out cross validation to find the best polynomial regression model. Repeat with 10-fold cross validation. Compare the two answers. 
+
+__Solution.__
+
+First, use leave-one-out cross validation. We can use degrees 1 to 15 to fit polynomial models.
+
+Next Plot the results. It turns out that the delta values of very large if the degree of the polynomial is large., therefore it is better to plot the logarithms (done below).
+
+The model with minimal delta for leave-one-out cross validation is 2 (black circle).
+
+The model with minimal delta for 10-fold  cross validation is also 2 (red triangle). _This depends on the random seed with which the cross validation is done._ 
+
+```{r}
+#| vscode: {languageId: r}
+# GET DATA
+set.seed(101)
+library(datasets)
+data(cars)
+results.41 <- data.frame(degree = 1:15, delta.loo = NA, delta.k10 = NA) 
+```
+
+```{r}
+#| vscode: {languageId: r}
+# DATAFRAME FOR OUTPUTS
+print(head(cars))
+print(dim(cars))
+```
+
+```{r}
+#| vscode: {languageId: r}
+for (j in 1:15){
+  fit.41 = glm(dist ~ poly(speed,j), data = cars)
+  fit.loo <- cv.glm(cars, fit.41, K = 50)# n=50 in the cars dataset
+  fit.k10 <- cv.glm(cars, fit.41, K = 10)
+  results.41$delta.loo[j] <- fit.loo$delta[1]
+  results.41$delta.k10[j] <- fit.k10$delta[1]
+}
+
+plot(log10(delta.loo) ~ degree, data = results.41, type = 'b',
+     main = "Results of cross validation")
+
+legend(x = "topleft", legend = c("leave-one-out", "10 fold"), fill = 1:2)
+
+n.1 <- which.min(results.41$delta.loo)
+points(n.1, log10(results.41$delta.loo[n.1]), lwd = 3, col = 1, cex = 2)
+n.2 <- which.min(results.41$delta.k10)
+points(n.2, log10(results.41$delta.k10[n.2]), lwd = 3, pch = 2, col = 2)
+lines(log10(delta.k10) ~ degree, data = results.41, type = 'b', col = 2)
+```
+
+## Part-2: Lab Assignment
+
+### Cross Validation Approaches
+
+We'll consider a regression problem with the Carseats dataset.
+
+**Lab-2.1.1** Fit a linear model to predict Sales from all other attributes. Looking at the model summary, what is the residual error?
+
+```{r}
+lin_model <- glm(Sales ~ ., data = Carseats)
+paste("Residual Error:",summary(lin_model$residuals)[[3]])
+```
+
+**Lab-2.1.2** Fit another linear model, but now do not include the predictors Population, Education, Urban, and US. What is the residual error? 
+
+```{r}
+lin_model_2 <- glm(Sales ~ . - Population - Education - Urban - US, data = Carseats)
+paste("Residual Error:",summary(lin_model_2$residuals)[[3]])
+```
+
+**Lab-2.1.3**  How do determine which model is better? Create a train/test split of the data and retrain your model. 
+
+Use the fitted model to make predictions on the test set, and check the model performance by calculating the root mean squared error and R squared values. 
+
+Conduct this for both the model from part (1) and part (2)).
+
+Discuss in text which model is the best and why?
+
+```{r}
+# Defining Useful functions
+RMSE <- function(pred, actual){
+  sqrt(mean((pred - actual)**2))
+}
+
+R_sq <- function(pred, actual){
+  RSS <- sum((pred - actual)**2)
+  TSS <- sum((actual - mean(actual))**2)
+  1 - RSS/TSS
+}
+
+## Created train and test sets
+indices <- sample(c(TRUE, FALSE), nrow(Carseats), replace = TRUE, prob = c(.8,.2))
+train <- Carseats[indices,]
+test <- Carseats[!indices,]
+```
+
+for part (1)
+
+```{r}
+# Train Model
+model_1 <- glm(Sales~., data = train)
+```
+
+```{r}
+# Make prediction
+predict_1 <- predict(model_1, newdata = test)
+```
+
+```{r}
+c(RMSE = RMSE(predict_1, test$Sales), R2 = R_sq(predict_1, test$Sales))
+```
+
+for part (2)
+
+```{r}
+# Train model
+model_2 <- glm(Sales~. - Population - Education - Urban - US, data = train)
+```
+
+```{r}
+# Make predictions
+predict_2 <- predict(model_2, newdata = test)
+```
+
+```{r}
+c(RMSE = RMSE(predict_2, test$Sales), R2 = R_sq(predict_2, test$Sales))
+```
+Based off of these results we can conclude that model 2 is superior as it has a lower RMSE and higher R2 scores indicating a better model fit. This makes sense as model 2 removed the statistically insignificant variables, resulting in a more accurate model.
+
+**Lab-2.1.4**  Use the cv.glm() function from the 'boot' library to conduct a cross validation analysis. Run 5-fold, 10-fold, and Leave One Out cross validation for part 1 and 2. Which model has a lower error?
+
+```{r}
+## Establishing models
+model_1_cv <- glm(Sales ~., data = Carseats)
+model_2_cv <- glm(Sales~. - Population - Education - Urban - US, data = Carseats)
+
+## Establishing a matrix to track cv
+cv.errors <- data.frame(cv = rep(c(5, 10, nrow(Carseats)),2), model = c(rep(1,3), rep(2,3)),error = NA) 
+## Running each CV
+errors_1 <- c()
+errors_2 <- c()
+for (i in c(5,10,nrow(Carseats))){
+  errors_1 <- c(errors_1, cv.glm(Carseats, model_1_cv, K = i)$delta[1])
+  errors_2 <- c(errors_2, cv.glm(Carseats, model_2_cv, K = i)$delta[1])
+}
+cv.errors$error <- c(errors_1, errors_2)
+```
+
+```{r}
+cv.errors
+```
+Model 2 once again proves to be the superior model according to all forms of CV (5, 10, LOOCV).
+
+### CV for Model Selection
+
+Here is a synthetic (noisy) dataset.
+
+```{r}
+mydf = data.frame(x = runif(100,min = -10, max = 10))
+mydf$y = sin(mydf$x) + .1*mydf$x^2 + rnorm(100)
+plot(y ~ x, data = mydf)
+```
+
+**Lab-2.1.5**  Fit a linear model to this data. Use 10-fold CV to estimate the error. 
+
+```{r}
+# Fit the model
+m.noisy <- glm(y~x, data = mydf)
+e <- cv.glm(mydf, m.noisy, K = 10)$delta[1]
+paste("Error:", e)
+```
+
+**Lab-2.1.6**  Use the poly() function to fit a quadratic model to this data. Use 10-fold CV to estimate the error.
+
+```{r}
+# Make a poly model
+m.poly <- glm(y ~ poly(x, 2), data = mydf)
+e.poly <- cv.glm(mydf, m.poly, K = 10)$delta[1]
+paste("Error:", e.poly)
+```
+
+**Lab-2.1.7**  Repeat this for polynomials up to order 15. Make a plot of the generalization error (calculated from CV) versus the order of the polynomial. 
+
+```{r}
+cv.error.deg = rep(0,15)
+
+for (i in 1:15){
+  glm.fit=glm(y~poly(x,i),data=mydf)
+  cv.error.deg[i]=cv.glm(mydf,glm.fit,K=10)$delta[1]
+}
+
+
+degree=1:15
+matplot(degree,cv.error.deg,type="l", main = "10 Fold CV Errors", ylab = "Error")
+
+
+## Best model is quadratic due to parsimony
+points(2, cv.error.deg[2], lwd = 3, cex = 2, col = 2)
+
+```
+

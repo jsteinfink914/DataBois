@@ -1,0 +1,496 @@
+---
+title: 'Lab-2.2: Model selection'
+author: Dr. Purna Gamage
+---
+
+**Instructions**
+
+* Read and complete all exercises below in the provided `.rmd` notebook 
+* [click here to download the notebook for the assignment](lab-2.2.rmd.zip)
+
+**Submission:**
+
+* You need to upload ONE document to Canvas when you are done. 
+* A PDF (or HTML) of the completed form of this notebook
+* The final uploaded version should NOT have any code-errors present. 
+* All outputs must be visible in the uploaded version, including code-cell outputs, images, graphs, etc
+
+**Optional**: 
+
+* You can actually work in `R` now inside VS-code using the `.ipynb` format
+* Its quite easy to get working: [click here for instructions](https://www.practicaldatascience.org/html/jupyter_r_notebooks.html)
+* There are a few benefits to this 
+  * (1) You can work 100% in VS-Code (for both R and Python), no need to switch between VSC and R-studio
+  * (2) You can work through your cells one at a time and see the incremental progress, similar to using `.ipynb` with python or `rmd` in R-studio.
+* With Quarto's `convert` command, you can re-format and jump between the different file-formats. For example, 
+* `quarto convert HW-2.rmd` will convert the file to `HW-2.ipynb`
+* `quarto convert HW-2.ipynb` will convert the file to `HW-2.qmd`, which can be renamed `HW-2.rmd` or just opened in R-studio like any other `rmd` file, just like normal.
+* `quarto render HW-2.ipynb` will render the notebook (either R or Python) into an aesthetically pleasing output.
+
+## Part-1: Demonstration
+
+```{r}
+
+library(ISLR)
+library(leaps)
+
+library(tidyverse)
+library(caret)
+
+```
+
+
+## Textbook  Example
+
+```{r}
+data(Hitters)
+summary(Hitters)
+
+```
+
+Need to remove missing values.
+
+```{r}
+# remove rows with missing data
+Hitters=na.omit(Hitters)
+with(Hitters, sum(is.na(Hitters$Salary)))
+
+```
+
+
+## Best subset 
+
+```{r}
+
+regfit.full=regsubsets(Salary~.,Hitters)
+summary(regfit.full)
+
+```
+
+looks lie it only goes upto 8 best variables.
+
+
+Let's try all 19 variables.
+
+```{r}
+
+regfit.full=regsubsets(Salary~.,data=Hitters,nvmax=19)
+(reg.summary=summary(regfit.full))
+
+names(reg.summary) 
+
+```
+
+
+```{r}
+reg.summary$rsq
+
+summary(regfit.full)$adjr2
+
+which.max(reg.summary$adjr2)
+
+plot(regfit.full,scale="adjr2")
+```
+
+
+
+```{r}
+
+par(mfrow=c(2,2))
+plot(reg.summary$rss,xlab="Number of Variables",ylab="RSS",type="l")
+
+plot(reg.summary$adjr2,xlab="Number of Variables",ylab="Adjusted RSq",type="l")
+
+m=which.max(reg.summary$adjr2)
+points(m,reg.summary$adjr2[11], col="red",cex=2,pch=20)
+
+```
+
+
+```{r}
+
+plot(reg.summary$cp,xlab="Number of Variables",ylab="Cp",type='l')
+m=which.min(reg.summary$cp)
+points(m,reg.summary$cp[10],col="red",cex=2,pch=20)
+
+```
+
+
+```{r}
+
+m=which.min(reg.summary$bic)
+plot(reg.summary$bic,xlab="Number of Variables",ylab="BIC",type='l')
+points(m,reg.summary$bic[6],col="red",cex=2,pch=20)
+
+```
+
+
+```{r}
+
+plot(regfit.full,scale="r2")
+plot(regfit.full,scale="adjr2")
+plot(regfit.full,scale="Cp")
+plot(regfit.full,scale="bic")
+coef(regfit.full,6)
+
+```
+
+
+## Forward and Backward Stepwise Selection
+
+```{r}
+
+regfit.fwd=regsubsets(Salary~.,data=Hitters,nvmax=19,method="forward")
+
+summary(regfit.fwd)
+
+```
+
+variables are nested.
+
+```{r}
+regfit.bwd=regsubsets(Salary~.,data=Hitters,nvmax=19,method="backward")
+summary(regfit.bwd)
+
+```
+
+
+```{r}
+
+coef(regfit.full,7)
+coef(regfit.fwd,7)
+coef(regfit.bwd,7)
+
+```
+
+
+# Choosing Among Models
+
+In order to use the validation set approach, we begin by splitting the observations into a training set and a test set. 
+
+We do this by creating a random vector, train, of elements equal to TRUE if the corresponding observation is in the training set, and FALSE otherwise. 
+
+The vector test has a TRUE if the observation is in the test set, and a FALSE otherwise. 
+
+Note the ! in the command to create test causes TRUEs to be switched to FALSEs and vice versa. 
+
+We also set a random seed so that the user will obtain the same training set/test set split.
+
+```{r}
+set.seed(1)
+train=sample(c(TRUE,FALSE), nrow(Hitters),rep=TRUE)
+test=(!train)
+```
+
+Now, we apply regsubsets() to the training set in order to perform best subset selection.
+
+Notice that we subset the Hitters data frame directly in the call in order to access only the training subset of the data, using the expression Hitters[train,]. 
+
+
+```{r}
+
+regfit.best=regsubsets(Salary~.,data=Hitters[train,],nvmax=19)
+
+```
+
+We now compute the validation set error for the best model of each model size. 
+
+We first make a model matrix from the test data.
+
+The model.matrix() function is used in many regression packages for building an “X” matrix from data. 
+
+
+```{r}
+test.mat=model.matrix(Salary~.,data=Hitters[test,])
+```
+
+
+Now we run a loop, and for each size i, we extract the coefficients from regfit.best for the best model of that size, multiply them into the appropriate columns of the test model matrix to form the predictions, and compute the test MSE.
+
+
+```{r}
+
+val.errors=rep(NA,19)
+for(i in 1:19){
+  coefi=coef(regfit.best,id=i)
+  pred=test.mat[,names(coefi)]%*%coefi
+  val.errors[i]=mean((Hitters$Salary[test]-pred)^2)
+}
+
+```
+
+
+We find that the best model is the one that contains ten variables.
+
+```{r}
+
+val.errors
+m=which.min(val.errors) #m=10
+coef(regfit.best,m)
+
+```
+
+This was a little tedious, partly because there is no predict() method for regsubsets(). 
+
+Since we will be using this function again, we can capture our steps above and write our own predict method.
+
+
+```{r}
+
+predict.regsubsets=function(object,newdata,id,...){
+  form=as.formula(object$call[[2]])
+  mat=model.matrix(form,newdata)
+  coefi=coef(object,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+```
+
+Our function pretty much mimics what we did above.
+
+Finally, we perform best subset selection on the full data set, and select the best ten-variable model. 
+
+```{r}
+
+regfit.best=regsubsets(Salary~.,data=Hitters,nvmax=19)
+coef(regfit.best,10)
+
+```
+
+In fact, we see that the best ten-variable model on the full data set has a different set of variables than the best ten-variable model on the training set.
+
+We now try to choose among the models of different sizes using cross- validation. 
+
+we must perform best subset selection within each of the k training sets. 
+
+Despite this, we see that with its clever subsetting syntax, R makes this job quite easy. 
+
+First, we create a vector that allocates each observation to one of k = 10 folds, and we create a matrix in which we will store the results.
+
+```{r}
+
+k=10
+set.seed(1)
+folds=sample(1:k,nrow(Hitters),replace=TRUE)
+cv.errors=matrix(NA,k,19, dimnames=list(NULL, paste(1:19)))
+
+```
+
+Now we write a for loop that performs cross-validation. 
+
+In the jth fold, the elements of folds that equal j are in the test set, and the remainder are in the training set. 
+
+We make our predictions for each model size (using our new predict() method), compute the test errors on the appropriate subset, and store them in the appropriate slot in the matrix cv.errors.
+
+```{r}
+
+for(j in 1:k){
+  best.fit=regsubsets(Salary~.,data=Hitters[folds!=j,], nvmax=19)
+  for(i in 1:19){
+    pred=predict(best.fit,Hitters[folds==j,],id=i)
+    cv.errors[j,i]=mean( (Hitters$Salary[folds==j]-pred)^2)
+  }
+}
+
+```
+
+This has given us a 10×19 matrix, of which the (i, j)th element corresponds to the test MSE for the ith cross-validation fold for the best j-variable model. 
+
+We use the apply() function to average over the columns of this matrix in order to obtain a vector for which the jth element is the cross- validation error for the j-variable model.
+
+```{r}
+
+mean.cv.errors=apply(cv.errors,2,mean)
+mean.cv.errors
+par(mfrow=c(1,1))
+plot(mean.cv.errors,type='b')
+
+```
+
+We see that cross-validation selects an 11-variable model. 
+
+We now perform best subset selection on the full data set in order to obtain the 11-variable model.
+
+```{r}
+
+reg.best=regsubsets(Salary~.,data=Hitters, nvmax=19)
+coef(reg.best,11)
+
+```
+
+## Example
+
+Predicting fertility score on the basis of socio-economic indicators.
+
+```{r}
+
+# Load the data
+data("swiss")
+# Inspect the data
+sample_n(swiss, 3)
+
+```
+
+(a). Computing best subsets regression.
+
+In our example, we have only 5 predictor variables in the data. So, we’ll use nvmax = 5.
+
+
+```{r}
+models <- regsubsets(Fertility~., data = swiss, nvmax = 5)
+summary(models)
+
+```
+
+It can be seen that the best 2-variables model contains only Education and Catholic variables 
+
+$(Fertility \sim Education + Catholic)$. 
+
+The best three-variable model is 
+
+$(Fertility \sim Education + Catholic + Infant.mortality)$, and so forth.
+
+A natural question is: which of these best models should we finally choose for our predictive analytics?
+
+(c) Choosing the optimal model.
+
+```{r}
+res.sum <- summary(models)
+
+data.frame(
+  Adj.R2 = which.max(res.sum$adjr2),
+  CP = which.min(res.sum$cp),
+  BIC = which.min(res.sum$bic)
+)
+
+```
+
+Here, adjusted R2 tells us that the best model is the one with all the 5 predictor variables. However, using the BIC and Cp criteria, we should go for the model with 4 variables.
+
+Note also that the adjusted R2, BIC and Cp are calculated on the training data that have been used to fit the model. This means that, the model selection, using these metrics, is possibly subject to overfitting and may not perform as well when applied to new data.
+
+A more rigorous approach is to select a models based on the prediction error computed on a new test data using k-fold cross-validation 
+
+(d). K-fold cross-validation
+
+(i) get_model_formula(), allowing to access easily the formula of the models returned by the function regsubsets().
+
+```{r}
+
+# id: model id
+# object: regsubsets object
+# data: data used to fit regsubsets
+# outcome: outcome variable
+get_model_formula <- function(id, object, outcome){
+  # get models data
+  models <- summary(object)$which[id,-1]
+  # Get outcome variable
+  #form <- as.formula(object$call[[2]])
+  #outcome <- all.vars(form)[1]
+  # Get model predictors
+  predictors <- names(which(models == TRUE))
+  predictors <- paste(predictors, collapse = "+")
+  # Build model formula
+  as.formula(paste0(outcome, "~", predictors))
+}
+
+```
+
+For example to have the best 3-variable model formula;
+
+```{r}
+get_model_formula(3, models, "Fertility")
+
+```
+
+
+(ii) get_cv_error(), to get the cross-validation (CV) error for a given model:
+
+```{r}
+
+get_cv_error <- function(model.formula, data){
+  set.seed(1)
+  train.control <- trainControl(method = "cv", number = 5)
+  cv <- train(model.formula, data = data, method = "lm",
+              trControl = train.control)
+  cv$results$RMSE
+}
+
+```
+
+
+Finally, use the above defined helper functions to compute the prediction error of the different best models returned by the regsubsets() function:
+
+```{r}
+# Compute cross-validation error
+model.ids <- 1:5
+cv.errors <-  map(model.ids, get_model_formula, models, "Fertility") %>%
+  map(get_cv_error, data = swiss) %>%
+  unlist()
+cv.errors
+
+# Select the model that minimize the CV error
+which.min(cv.errors)
+
+```
+
+It can be seen that the model with 4 variables is the best model. It has the lower prediction error. 
+
+The regression coefficients of this model can be extracted as follow:
+
+```{r}
+
+coef(models, 4)
+
+```
+
+Read more:
+
+<http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/155-best-subsets-regression-essentials-in-r/>
+
+<http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/154-stepwise-regression-essentials-in-r/>
+
+
+## Part-2: Lab Assignment
+
+Explore the Hitters dataset and use Best Subset selection with the regsubsets() function. From the outputs of regsubsets(), we can obtain metrics like BIC for each sub-model with K predictors.
+
+**lab-2.2.1** Make a few plots showing BIC, and Mallow’s Cp, and 1-Adjusted-Rsquared. 
+
+```{r}
+## Running full model
+reg <- regsubsets(Salary~., data = Hitters, nvmax = 19)
+reg.sum <- summary(reg)
+
+## Gathering criteria and minimum points
+bic <- reg.sum$bic
+cp <- reg.sum$cp
+adjr2 <- reg.sum$adjr2
+b=which.min(bic)
+c = which.min(cp)
+a <- which.max(adjr2)
+
+#Plotting
+par(mfrow= c(2,2))
+plot(bic, type= 'l', xlab = "Number of Vars")
+points(b,min(bic), col="red",cex=2,pch=20)
+plot(cp, type = 'l',col = 'blue', xlab = "Number of Vars")
+points(c,min(cp), col="red",cex=2,pch=20)
+plot(adjr2,type = 'l', col = 'red', xlab = "Number of Vars")
+points(a,max(adjr2), col="blue",cex=2,pch=20)
+```
+
+Are the different metrics in rough agreement?
+
+Yes the metrics are in rough agreement. BIC is more conservative as a metric and returned an optimal model with only 6 variables, while cp and adjr2 are in agreement with ~10 variable model. If we were to take this further we would take the 6 variable, 10 variable, and 11 variable models and run them through CV to determine the one that gives the lowest test error.
+
+**lab-2.2.2** These metrics are evaluated with the full training set. Another way we can approach the problem of model selection is to use cross validation. What are the pros and cons of each approach?
+
+The pros of evaluating the metrics on the full training set are that it is simple and has low computational cost as it does not require running the models multiple times which can be very time consuming on large data frames. It also gets access to the whole data, which can give more comprehensive analytics on how well the model performs. Some cons include the metrics revolving around estimations of the test MSE which would not be as precise as the actual test MSE. It can also lead to overestimation of model performance. When you evaluate the model on the entire dataset, you are essentially evaluating it on the same data used for model training. This can lead to overfitting, where the model performs well on the training data but poorly on new data.
+
+The pros of using cross-validation include a better estimate of model performance on unseen data which thus helps to avoid overfitting, and better manage the bias-variance tradeoff. It also allows for hyperparameter tuning because you can evaluate the model with different values of the hyperparameters on different folds of the data. The major con is higher computational cost especially for large datasets.
+
+
+
+

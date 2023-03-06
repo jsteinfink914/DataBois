@@ -1,0 +1,90 @@
+---
+jupyter: ir
+---
+
+# Lab-3.1: Ridge and lasso regularization
+Author: Dr. Purna Gamage
+
+**Instructions**
+
+* Read and complete all exercises below in the provided `.rmd` notebook 
+* [click here to download the notebook for the assignment](lab-3.1.rmd.zip)
+
+**Submission:**
+
+* You need to upload ONE document to Canvas when you are done. 
+* A PDF (or HTML) of the completed form of this notebook
+* The final uploaded version should NOT have any code-errors present. 
+* All outputs must be visible in the uploaded version, including code-cell outputs, images, graphs, etc
+
+## Import
+
+```{r}
+
+require(ISLR)
+require(MASS)
+require(glmnet)
+require(leaps)
+set.seed(3315)
+```
+
+## Question-1: 
+
+In this exercise, we will predict the number of applications received using the other variables in the College data set.
+
+Source: ISLR ch. 6 #9abcd
+
+```{r}
+
+# LOOK AT DATA
+print(class(College))
+print(dim(College))
+print(head(College))
+```
+
+### Q1.a: 
+Split the data set into a training set and a test set.
+
+
+### Q1.b: 
+Fit a linear model using least squares on the training set, and print the test error obtained.
+
+
+### Q1.c: 
+* Fit a ridge regression model on the training set, with $\lambda$ chosen by cross-validation. 
+* Plot the test MSE as a function of the log of the regularization parameter (i.e. log($\lambda$)) for several orders of magnitude.
+* Also report the test error obtained.
+
+
+### Q1.d: 
+* Fit a lasso model on the training set, with $\lambda$ chosen by cross-validation. 
+* Again, Plot the MSE as a function of the log of the regularization parameter (i.e. log($\lambda$)) for several orders of magnitude.
+* Also plot the number of non-zero coefficient estimates.
+* Finally, report the test error obtained.
+
+
+
+## Question-2: 
+
+Consider the __Boston__ data. We want to predict __medv__ from all other predictors, using the LASSO.
+
+### Q2.a
+Set up the LASSO and plot the trajectories of all coefficients. What are the last five variables to remain in the model? 
+
+
+### Q2.b 
+Find the 1SE value of $\lambda$, using 10-fold cross-validation. What is the cross validation estimate for the residual standard error? 
+
+
+
+### Q2.c 
+Rescale all predictors so that their mean is zero and their standard deviation is 1. Then set up the LASSO  and plot the trajectories of all coefficients. 
+
+What are the last five variables to remain in the model? Compare  your answer to part a).
+
+
+
+### Q2.d 
+Find the 1SE value of $\lambda$, using 10-fold cross-validation. What is the cross validation estimate for the residual standard error now? Does rescaling lead to a better performing model? 
+
+
