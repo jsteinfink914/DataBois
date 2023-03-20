@@ -1,4 +1,6 @@
 
+# Problem here: https://www.codewars.com/kata/585894545a8a07255e0002f1/train/r
+
 define_unavailable <- function(bundle){
   
   std_av <- matrix(rep(T, 9), nrow = 3)
@@ -74,5 +76,5 @@ count_patterns_from <- function(f, l){
 
 s <- expand.grid(LETTERS[1:9], 4:9)
 s$count <- sapply(1:nrow(s), function(i) count_patterns_from(s[i,1], s[i,2]))
-# This does it right (sum(s$all) == 389112), but a speed issue 
+# This does it right (sum(s$count) == 389112), but a speed issue 
 # There is symmetry wt/ corners + inner edges -> can this improve speed?
